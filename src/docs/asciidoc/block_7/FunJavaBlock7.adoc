@@ -1,0 +1,39 @@
+= Block 7: Wrap-Up
+:sourcedir: ../src/main/java
+
+== Diskussion und Erfahrungsaustausch
+
+== Linksammlung
+
+Immutables :: https://immutables.github.io/
+Immutables Doc :: https://immutables.github.io/immutable.html
+Immutables JSON serialization :: http://immutables.github.io/json.html
+Vavr :: http://www.vavr.io/
+Vavr Doc :: http://www.vavr.io/vavr-docs/
+Vavr ApiDoc :: http://www.javadoc.io/doc/io.vavr/vavr/0.9.0
+Immutables - Vavr :: https://github.com/immutables/immutables-vavr
+Vavr Jackson :: https://github.com/vavr-io/vavr-jackson
+Spring Data :: http://projects.spring.io/spring-data/
+Resilience4j :: https://github.com/resilience4j/resilience4j
+Cyclops :: https://github.com/aol/cyclops
+Grzegorz Piwowarek - Vavr(ex-Javaslang) - Functional Java Done Right :: https://youtu.be/rYKwG6dX9N4
+
+=== Blogs
+
+* http://blog.vavr.io/
+* https://softwaremill.com/javaslang-data-validation/
+* http://www.baeldung.com/javaslang-try
+* http://wahidsadik.github.io/coding/2016/12/28/using-javaslang-either/
+* https://dev.to/koenighotze/in-praise-of-vavrs-option
+* https://softwaremill.com/do-we-have-better-option-here/
+
+
+== Literaturempfehlungen
+
+Java 8 in Action :: Raoul-Gabriel Urma, Mario Fusco, Alan Mycroft - Manning 2015
+
+Functional Programming in Java :: Pierre-Yves Saumont - Manning 2017
+
+Functional And Reactive Domain Modelling :: Debasish Ghosh - Manning 2017
+
+

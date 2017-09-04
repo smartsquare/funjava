@@ -1,0 +1,228 @@
+= Block 1: Einführung und Motivation
+
+== Kurze Vorstellung
+ * Wir (Jens und Tobias)
+ * Ihr
+ * Materialen verteilen
+ * Vorstellung Übungssetup
+
+== Motivation
+
+ * The free lunch is over (http://www.gotw.ca/publications/concurrency-ddj.htm)
+ ** Moore's law
+ ** Bisher: CPUs wurden immer schneller
+ ** Aktuell: Die CPU wird nicht mehr (wesentlich) schneller, es kommen mehr Kerne dazu
+ ** Concurrency vs. mutable state
+
+ * Big Data
+ ** Map Reduce
+
+ * Beweisbar? Leichter nachvollziehbar?
+
+== Hype oder Mythos?
+
+
+== Funktionales Programmieren
+
+[quote, Wikipedia-Artikel "Funktionale Programmierung", erster Absatz]
+Funktionale Programmierung ist ein Programmierparadigma, innerhalb dessen Programme aus Funktionen und deren Anwendung zusammengesetzt werden. Dabei ist insbesondere der gleichzeitige Gebrauch dieser Funktionen als reguläre Datenobjekte von Bedeutung. Programmiersprachen, die funktionale Programmierung ermöglichen, heißen funktional.
+
+== Bausteine
+
+ * Funktionen höherer Ordnung
+    ** Funktionen die Funktionen als Argument bekommen
+    ** Funktionen die Funktionen zurückgeben
+
+ * Referentielle Transparanz
+    ** keine (beobachtbaren) Seiteneffekte
+    ** Ausgabe hängt nur von der Eingabe ab
+    ** ermöglicht Substitutions-Modell
+
+ * Immutable data structures
+    ** "persistent collections"
+    ** Algebraische Datentypen
+
+ * Rekursion
+
+ * Currying
+
+== Funktionales Programmieren und Java
+
+* Kaum Sprachmittel die funktionales Programmieren unterstützen :(
+* Trotzdem sind entsprechende Bibliotheken entstanden,
+siehe z.B. http://functionalj.sourceforge.net/[FunctionalJ]
+* Java8 liefert mit Lambda Expressions einen entscheidendes Puzzlestück um funktionale Programmierung mit Java zu erleichtern.
+
+== Java 8 Lambda Auffrischung
+
+=== Lambda Expressions
+
+[quote, Java 8 in Action, erster Absatz Kapitel 3.1]
+A _lambda expression_ can be understood as a concise representation of an anonymous
+function that can be passed around: it doesn't have a name,
+but it has a list of parmeters, a body, a return type, and also possibly a list of
+exceptions that can be thrown.
+
+
+[listing]
+[source,java]
+.Lambda Expression Beispiel
+----
+(String name, String suffix) -> name + '.' + suffix;
+----
+
+1. Lambda Argumente
+2. Pfeil (->)
+3. Lambda body
+
+=== Lambda Expressions vs Anonyme Klassen
+
+[listing]
+[source, java]
+.Anonyme Klasse
+----
+Comparator<Person> byAge = new Comparator<Person>() {
+    public int compare(Person p1, Person p2) {
+        return p1.getAge().compareTo(p2.getAge());
+    }
+};
+----
+
+[listing]
+[source, java]
+.Lambda expression
+----
+Comparator<Person> byAge = (Person p1, Person p2) -> p1.getAge().compareTo(p2.getAge());
+----
+
+=== Functional interface
+
+Definition: Ein `functional interface` ist ein Interface mit genau einer abstrakten Methode.
+
+* Lambda expressions implementieren functional interfaces
+* Viele bekannte JDK Interfaces sind functional interfaces, z.B. Runnable oder Comparator
+* Es gibt auch neue functional interfaces in JDK 8 (z.B. Predicate)
+* Neben der einen abstrakten Methode können beliebig viele `default` Methoden vorhanden sein.
+* `@FunctionalInterface` stellt sicher, dass die Regeln eingehalten werden, ansonsten Compilefehler
+
+=== Method references
+
+Method references erlauben es, Methoden als lambda expressions zu verwenden.
+
+* `Person::getAge` ist gleichbedeutend mit `(Person p) -> p.getAge()`
+* Konstruktor können mit `new` ausgedrückt werden, z.B. `Person::new` 
+
+== Workshop Szenario: Banking
+
+* Ähnlichkeiten zu tatsächlich existierenden Domänen sind rein zufällig ;)
+* leicht verständliche Spieldomäne
+
+=== Klassendiagramm
+
+[plantuml, domainuml, png]
+.Sophisticated Banking Domain
+....
+@startuml
+class Address {
+    String street
+    String city
+}
+
+class Person {
+    String name
+    LocalDate birthdate
+    Set addresses
+    Optional nationality
+}
+
+class Account {
+    String accountNumber
+    BigDecimal balance
+    Person owner
+}
+
+class BankingTransaction {
+    Account fromAccount
+    Account toAccount
+    BigDecimal amount
+}
+
+Person  --> "*" Address
+Account --> Person
+BankingTransaction --> Account
+
+hide methods
+@enduml
+....
+
+=== Testdaten
+
+Über das `Data` Interface stehen für jeden Übungsblock die gleichen Daten aus
+gelesen CSV-Dateien bereit.
+
+.Personen und Adressen
+[%header,format=csv,separator=;]
+|===
+Name;Birthdate;Nationality;Street1;City1;Street2;City2;Street3;City3
+Alice;2000-01-01;DE;Meisenstr.;Bielefeld;;;;
+Bob;1975-03-31;IN;Bahnhofstr.;Nürnberg;Marienstr.;Nürnberg;Meisenstr.;Bielefeld
+Carol;1970-01-01;US;Bahnhofstr.;Bielefeld;Kapuzinerstr.;Bamberg;;
+Dave;1999-09-09;;Willy-Brandt-Straße;Berlin;;;;
+Eve;2002-07-15;;Infinite Loop;Cupertino;;;;
+|===
+
+.Accounts
+[%header,format=csv,separator=;]
+|===
+No;Balance;Owner
+X333F1;13.37;Alice
+K99LM5;-200.50;Bob
+MM99X3;900.00;Carol
+3PO42Q;614.53;Dave
+PPKM3Z;-4529.88;Eve
+915T2SQ;2.50;Dave
+UU702G;-59.25;Bob
+|===
+
+.Transaktionen
+[%header,format=csv,separator=;]
+|===
+From;To;Amount
+X333F1;UU702G;33.87
+K99LM5;X333F1;2.99
+MM99X3;K99LM5;222.14
+3PO42Q;MM99X3;8799.23
+PPKM3Z;3PO42Q;100.00
+915T2SQ;PPKM3Z;30.80
+UU702G;915T2SQ;421.33
+X333F1;K99LM5;31.81
+K99LM5;MM99X3;9.94
+MM99X3;3PO42Q;32.09
+3PO42Q;PPKM3Z;832.34
+PPKM3Z;915T2SQ;14.87
+915T2SQ;UU702G;99.99
+UU702G;X333F1;42.00
+X333F1;K99LM5;38.13
+K99LM5;MM99X3;22.65
+MM99X3;3PO42Q;82.86
+X333F1;PPKM3Z;45.27
+K99LM5;915T2SQ;76.53
+X333F1;915T2SQ;60.93
+|===
+
+
+== Übungsaufgaben
+
+=== Software verteilen und installieren
+
+* Netzwerk
+* IDE
+* Workshopprojekt
+
+=== Einsatzbereitschaft sicherstellen
+
+* Gradle-Build (`./gradlew build`)
+** Optional: Doku erzeugen (`./gradlew asciidoctor`)
+* Projekt in der IDE aufgesetzt
+* Tests erfolgreich aus der IDE aufrufen
+

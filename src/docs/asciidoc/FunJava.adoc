@@ -1,0 +1,26 @@
+= Functional Java 8 -- Let's have some fun!
+Tobias Ahlers <ahlers@smartsquare.de>; Jens Krafczyk <krafczyk@smartsquare.de>
+ifndef::sourcedir[:sourcedir: ../..]
+
+
+include::block_1/FunJavaBlock1.adoc[leveloffset=1]
+
+include::block_2/FunJavaBlock2.adoc[leveloffset=1]
+
+include::block_3/FunJavaBlock3.adoc[leveloffset=1]
+
+include::block_4/FunJavaBlock4.adoc[leveloffset=1]
+
+include::block_5/FunJavaBlock5.adoc[leveloffset=1]
+
+include::block_6/FunJavaBlock6.adoc[leveloffset=1]
+
+include::block_7/FunJavaBlock7.adoc[leveloffset=1]
+
+
+
+
+
+
+
+

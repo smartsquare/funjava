@@ -1,0 +1,311 @@
+= Block 6: Vavr II
+:sourcedir: ../src/main/java
+
+== Kontrollstrukturen
+
+Das Package `io.vavr.control` stellt einige zusätzliche Typen bereit, die über den Aspekt der
+Datenspeicherung aus dem `io.vavr.collection` Package hinausgehen.
+Neben dem bereits bekannten `Option` sind dies der disjunkte Vereinigungs-Typ `Either`
+(disjunct union type), `Try` zum Abbilden von Exceptionhandling und `Validation` zu
+Validierungszwecken.
+
+Am Beispiel einer Schufaabfrage in unserer Beispieldomäne werden sie kurz vorgestellt.
+
+[source,java]
+.BankingService mit Schufacheck
+----
+public class BankingService {
+
+    public Option<Integer> checkSchufaScoreWithOption(PersonVavr person){
+        ...
+    }
+
+}
+----
+
+
+=== Either
+
+[source,java]
+.Schufacheck mit Either
+----
+public class BankingService {
+
+    public enum SchufaErrorCode { // <1>
+        UNKNOWN_PERSON, GENERAL_ERROR}
+
+...
+
+    public Either<SchufaErrorCode, Integer> checkSchufaScoreWithEither(PersonVavr person){ // <2>
+        ...
+    }
+
+...
+}
+----
+<1> Definition eines Errorcodes der angibt aus welchen Grund eine Schufaanfrage fehlgeschlagen ist.
+<2> Das Ergebnis der Schufaanfrage ist von Type `Either<SchufaErrorCode, Integer>` um anzuzeigen, dass
+        * entweder der check fehlgeschlagen ist und ein ErrorCode zurückkommt, oder
+        * ein Schufascore in Form eines Integers
+
+Der Typ `Either` erlaubt dabei über die Eigenschaften `left` und `right` Zugriff auf die beiden
+Möglichkeiten. Dabei ist immer ein Variante gefüllt während die andere leer ist. Insbesondere in
+Szenarien die wie im Beispiel einen möglichen Fehler abbilden, gilt die Konvention, dass der
+Erfolgsfall im _rechten_ (right -> richtigen) Zweig und der Fehlerfall im linken Zweig behandelt wird.
+
+[source,java]
+.Schufacheck mit Either Testbeispiele
+----
+    @Test
+    public void eveHasSchufaScoreWithEither(){
+        assertEquals(Integer.valueOf(3),
+                bankingService.checkSchufaScoreWithEither(EVE).right().get()); // <1>
+    }
+
+    @Test
+    public void aliceIsNotKnownToSchufaWithEither(){
+        Either<BankingService.SchufaErrorCode, Integer> schufaResult =
+                bankingService.checkSchufaScoreWithEither(ALICE);
+
+        assertTrue(schufaResult.isLeft()); // <2>
+        assertEquals(UNKNOWN_PERSON, schufaResult.left().get()); // <3>
+    }
+----
+<1> Erfolgsfall über `right().get()`
+<2> Der Zustand kann über entsprechende Methoden (z.B. `isLeft()` oder `isRight()`) abgefragt werden.
+<3> Zugriff auf den Fehlerfall mittels `left()`
+
+=== Validation
+
+[source,java]
+.Schufacheck mit Validation
+----
+public class BankingService {
+
+    public enum SchufaErrorCode {
+        UNKNOWN_PERSON, GENERAL_ERROR}
+
+...
+
+    public Validation<SchufaErrorCode, Integer> checkSchufaScoreWithValidation(PersonVavr person){
+        ...
+    }
+
+...
+}
+----
+
+[source,java]
+.Schufacheck mit Validation Testbeispiele
+----
+    @Test
+    public void eveHasSchufaScoreWithValidation(){
+        Validation<BankingService.SchufaErrorCode, Integer> schufaResult =
+                bankingService.checkSchufaScoreWithValidation(EVE);
+
+        assertTrue(schufaResult.isValid()); // <1>
+        assertEquals(Integer.valueOf(3), schufaResult.get()); // <2>
+    }
+
+    @Test
+    public void aliceIsNotKnownToSchufaWithValidation(){
+        Validation<BankingService.SchufaErrorCode, Integer> schufaResult =
+                bankingService.checkSchufaScoreWithValidation(ALICE);
+
+        assertTrue(schufaResult.isInvalid()); // <1>
+        assertEquals(UNKNOWN_PERSON, schufaResult.getError()); // <3>
+    }
+----
+<1> Abfrage des Zustands über `isValid()` und `isInvalid()`
+<2> Das valide Ergebnis kann über `get()` ermittelt werden
+<3> Der Fehlerfall steht über `getError()` zur Verfügung
+
+Validation ähnelt strukturell dem `Either`-Typ, hat aber einen wesentlich schärferes Einsatzprofil.
+Schon der Typname und die Methodenbezeichnungen legen sich stark auf die Einsatzdomäne fest.
+Dazu kommen spezielle Methoden um mehrere Validations zu kombinieren um am Ende entweder ein Ergebnis
+zu erzeugen oder eine Liste mit fehlgeschlagenen Validierungen zu bekommen.
+
+[source,java]
+.Validation Combination (Beispiel aus Vavr-Doku)
+----
+class PersonValidator {
+
+    private static final String VALID_NAME_CHARS = "[a-zA-Z ]";
+    private static final int MIN_AGE = 0;
+
+    private Validation<String, String> validateName(String name) { // <1>
+        return CharSeq.of(name).replaceAll(VALID_NAME_CHARS, "").transform(seq -> seq.isEmpty()
+                ? Validation.valid(name)
+                : Validation.invalid("Name contains invalid characters: '"
+                + seq.distinct().sorted() + "'"));
+    }
+
+    private Validation<String, Integer> validateAge(int age) { // <1>
+        return age < MIN_AGE
+                ? Validation.invalid("Age must be at least " + MIN_AGE)
+                : Validation.valid(age);
+    }
+
+    public Validation<Seq<String>, Person> validatePerson(String name, int age) {
+        return Validation.combine(validateName(name), validateAge(age)).ap(Person::new); // <2>
+    }
+}
+----
+<1> Validation für unterschiedliche Aspekte
+<2> Kombination der Einzelvalidierungen um entweder eine Liste mit Fehlern oder ein Endergebnis
+zu bekommen
+
+=== Try
+
+Try dient hauptsächlich als Alternative zum Exceptionhandling mit throw und catch.
+Auftretende Exception werden damit über den Rückgabewert abgehandelt und nicht als Seiteneffekt
+via `throw`.
+
+Man kann Try auch als Either mit einem festen _linken_ Typen `Throwable` verstehen.
+
+[source,java]
+.Schufacheck mit Try
+----
+public class BankingService {
+
+    public enum SchufaErrorCode {
+        UNKNOWN_PERSON, GENERAL_ERROR}
+
+    public class SchufaException extends RuntimeException{ // <1>
+        public SchufaException(SchufaErrorCode errorCode){
+            super("SchufaException: " + errorCode.name());
+        }
+    }
+
+...
+
+    public Try<Integer> checkSchufaScoreWithTry(PersonVavr person){ <2>
+        ...
+    }
+
+...
+}
+----
+<1> Definition einer Exception um das Ergebnis der Schufaabfrage zu repräsentieren.
+<2> Der Rückgabewert ist `Try<Integer>`. Der Fehlerfall ist nicht mehr explizit in der Typsignatur
+vorhanden.
+
+[source,java]
+.Schufacheck mit Try Testbeispiele
+----
+    @Test
+    public void eveHasSchufaScoreWithTry(){
+        Try<Integer> schufaResult = bankingService.checkSchufaScoreWithTry(EVE);
+
+        assertTrue(schufaResult.isSuccess()); // <1>
+        assertEquals(Integer.valueOf(3), schufaResult.get()); // <2>
+    }
+
+    @Test
+    public void aliceIsNotKnownToSchufaWithTry(){
+        Try<Integer> schufaResult = bankingService.checkSchufaScoreWithTry(ALICE);
+
+        assertTrue(schufaResult.isFailure()); // <1>
+        assertTrue(schufaResult.getCause().getMessage().contains("UNKNOWN_PERSON")); // <3>
+    }
+----
+<1> Abfrage des Zustands über `isSuccess()` und `isFailure()`
+<2> Das erfolgreiche (_success_) Ergebnis kann über `get()` ermittelt werden
+<3> Im Fehlerfall kann über `getCause()` auf das Throwable zurückgegeben werden.
+
+Zusätzlich zu den hier skizzierten Einsatz gibt es unter anderen weitere Methoden um
+
+ * Code(-Blöcke) auszuführen und das Ergebnis automatisch in einem Try
+   zu verpacken (`Try.of`, `Try.ofCallable`, ...)
+ * Try Aufrufe zu kombinieren (`andThen`, `andThenTry`)
+ * Fehlerszenarien zu behandeln (`recover`, `recoverWith`)
+
+
+== Pattern Matching
+
+Pattern Matching ist ein in den meisten funktionalen Sprachen vorhandenes Feature.
+
+
+[source,java]
+.Pattern Matching in Scala (Beispiel aus Vavr-Doku)
+----
+  val s = i match {
+    case 1 => "one"
+    case 2 => "two"
+    case _ => "?"
+  }
+----
+
+In Java gibt es nur die Möglichkeit auf eine if/then/else-Kaskade oder ein switch
+Block. Ein entscheidener Unterschied ist dabei, dass in Java ein `if` oder ein
+`switch` keine Expression, sondern ein Statement ist, d.h. keinen Rückgabewert liefert.
+Die case-Pattern in Scala erlauben darüber hinaus noch weitere Features, z.B. Named
+Parameter oder Object Deconstruction.
+
+[source, java]
+.If Then Else in plain Java
+----
+String s;
+if (i == 1){
+    s = "one";
+} else if (i == 2){
+    s = "two";
+} else {
+    s = "?";
+}
+----
+
+Einen Teil der Möglichkeiten von Scala wird durch Vavr auf einem API-Level möglich
+gemacht.
+
+Mit dem statischen Import `import static io.vavr.API.*` werden die Methoden `Match`, `Case`
+und die atomaren Pattern
+
+* `$()` - Wildcard Pattern
+* `$(value)` - Equals Pattern
+* `$(predicate)` - Conditional Pattern
+
+verfügbar gemacht.
+
+[source,java]
+.Pattern Matching mit Vavr (Beispiel aus Vavr-Doku)
+----
+String s = Match(i).of(
+    Case($(1), "one"),  // <1>
+    Case($(2), "two"),  // <1>
+    Case($(), "?")      // <2>
+);
+----
+<1> Equals Pattern
+<2> Wildcard Pattern
+
+[source,java]
+.Pattern Matching aus dem BankingService
+----
+    private Either<SchufaErrorCode, Integer> checkSchufa(PersonVavr person) {
+        return Match(person).of(
+                Case($(p -> p.getName().equals("Alice")), Left(SchufaErrorCode.UNKNOWN_PERSON)), // <1>
+                Case($(this::livesInBahnhofstr), Left(SchufaErrorCode.GENERAL_ERROR)), // <1>
+                Case($(), p -> Right(p.getName().length())) // <2>
+        );
+    }
+----
+<1> Verwendung des Conditional Pattern und direkte Rückgabe eines Wertes
+<2> Verwendung des Wildcard Pattern und Verwendung einer Funktion zur Erzeugung des Rückgabewertes.
+
+== Übungsaufgaben
+
+=== `BankingServiceNG`
+
+Entwickle einen neuen Banking Service mit dem gleichen öffentlichen Methoden mit folgenden
+Unterschieden:
+
+* Die Kernimplementierung im alten `BankingService` steckte in der privaten Methoden
+`private Either<SchufaErrorCode, Integer> checkSchufa(PersonVavr person)`. Die neue
+Implementierung soll statt `Either` `Validation` benutzen.
+* Die _Geschäftslogik_ soll dabei folgenden Regeln gehorchen:
+** Falls die Nationalität fehlt, soll ein `GENERAL_ERROR` zurückgegeben werden
+** Falls es mehrere Addressen gibt, soll ein `UNKNOWN_PERSON` zurückgegeben werden
+** Ansonsten entspricht der Score der Anzahl der _Kleinbuchstaben_
+* Entwickle testgetrieben und verwende nicht nur die bereits vorhandenen Personen in `Data`
+sondern auch eigene Testpersonen

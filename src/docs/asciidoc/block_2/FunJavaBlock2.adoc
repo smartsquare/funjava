@@ -1,0 +1,235 @@
+= Block 2: JDK Standard
+
+== Streams
+* Repräsentieren eine Folge von Objekten, die durch verschiedene Operationen transformiert / weiterverarbeitet werden.
+* *Keine* Speicherung der Daten
+* Verarbeitung kann Lazy sein
+* Streams sind potentiell unendlich lang (z.B. "Alle ganzen Zahlen in aufsteigender Reihenfolge",
+  oder "Alle Messungen eines Temperatursensors")
+
+=== Streams erzeugen
+* Stream aus dem Inhalt einer Collection:
+[source,java]
+----
+List<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+Stream<Integer> numbersStream = numbers.stream();
+----
+
+* Allgemeiner, aus einem beliebigen Iterable:
+[source,java]
+----
+Iterable<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+Stream<Integer> numbersStream = StreamSupport.stream(numbers.spliterator(), false);
+----
+
+* Stream der ganzen Zahlen in einem Intervall:
+[source,java]
+----
+IntStream numbersStream = IntStream.rangeClosed(1, 5);
+----
+* Stream aus festen Werten
+[source,java]
+----
+Stream<Integer> numbersStream = Stream.of(1, 2, 3, 4, 5);
+----
+
+=== Intermediate Operations
+Intermediate Operations machen etwas mit den im Stream enthaltenen Daten und liefern einen neuen Stream
+zurück. Der Aufruf dieser Methoden führt noch nicht dazu dass tatsächlich Elemente
+des Streams konsumiert werden.
+
+* filter() - Verarbeitet nur diejenigen Elemente des Streams weiter, die eine Bedingung erfüllen:
+[source,java]
+----
+Stream<Integer> evenNumbersStream = numersStream.filter(n -> n % 2 == 0);
+----
+* peek() - Wendet eine Funktion auf jedes Element des Streams an, und verwendet alle Elemente danach unverändert für die weiteren Verarbeitungsschritte.
+[source,java]
+----
+Stream<Integer> printingNumbersStream = numbersStream.peek(System.out::println);
+----
+* map() - Wendet eine Funktion auf jedes Element des Streams an, und verwendet die Rückgabewerte der Funktion für die weitere Verarbeitung.
+[source,java]
+----
+Stream<Integer> squaresStream = numbersStream.map(n -> n*n);
+----
+* sorted() - Sortiert alle Elemente des Streams mit einem Comparator und liefert einen neuen Stream mit dem Ergebnis. *Nicht lazy!*
+[source,java]
+----
+Stream<Integer> sortedNumbersStream = Stream.of(5, 3, 167, -3)
+      .sorted(Integer::compare);
+----
+* distinct() - Entfernt duplikate aus dem Stream
+[source,java]
+----
+Stream<Integer> distinctNumbersStream = Stream.of(1, 2, 3, 2)
+        .distinct();
+----
+* limit() - Verwendet nur die ersten x Elemente des Streams für weitere Verarbeitung
+[source,java]
+----
+Stream<Integer> firstTwoNumbersStream = numbersStream.limit(2);
+----
+* skip() - Überspring die ersten x Elemente des Streams für weitere Verarbeitung
+[source,java]
+----
+Stream<Integer> remainingNumbersStream = numbersStream.skip(2);
+----
+
+=== Terminal Operations
+Terminal Operations definieren den letzten Verarbeitsungsschritt für einen Stream. Erst mit der Definition
+der Terminal Operation wird die Verarbeitung tatsächlich gestartet und die Intermediate Operations ausgeführt.
+
+* collect() - Kann z.B. eine Collection aus allen Elementen des Streams erzeugen
+[source,java]
+----
+List<Integer> numbersList = sortedNumbersStream
+                            .collect(Collectors.toList());
+----
+* reduce() - Kombiniert Elemente Paarweise um ein einzelnes Ergebnis zurückzuliefern
+[source,java]
+----
+int factorial = IntStream.rangeClosed(1, 5)
+                         .reduce(1, (a, b) -> a * b);
+----
+* findFirst() - Liefert das erste Element eines sortierten Streams zurück
+[source,java]
+----
+Optional<Integer> first = sortedNumbersStream
+                         .findFirst();
+----
+* findAny() - Liefert ein einzelnes beliebiges Element eines Streams zurück
+[source,java]
+----
+Optional<Integer> any = sortedNumbersStream
+                        .findAny();
+----
+* forEach() - Ruft eine Methode ein mal für jedes Element des Streams auf (ähnlich zu peek())
+[source,java]
+----
+sortedNumbersStream.forEach(System.out::println);
+----
+=== Parallel Streams
+In parallelen Streams werden die Operatoren auf einem Threadpool verteilt ausgeführt. Aus Performance-Gesichtspunkten
+lohnt sich dies ggf. erst bei großen Datenmengen oder sehr aufwendigen Berechnungen. Alle parallen Streams teilen sich
+gemeinsam einen globalen Threadpool.
+
+Einige Operationen (z.B. findAny() und forEach()) liefern bei parallelen Streams aufgrund von Unterschieden in
+der Verarbeitungsreihenfolge eventuell andere Ergebnisse.
+
+Erzeugung von parallelen Streams:
+
+* Direkt aus einer Collection:
+[source,java]
+----
+List<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+Stream<Integer> numbersStream = numbers.parallelStream();
+----
+* Aus einem bestehenden Stream:
+[source,java]
+----
+Stream<Integer> originalStream = /*...*/;
+Stream<Integer> parallelStream = originalStream.parallel();
+----
+* Aus einem Iterable:
+[source,java]
+----
+Iterable<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+Stream<Integer> numbersStream = StreamSupport.stream(numbers.spliterator(), true);
+----
+
+== Optional
+Behälter, der entweder leer ist oder genau einen nicht-`null` Wert enthält. Optional ist insbesondere bei Methodenrückgabewerten
+geeignet, um ausdrücklich klar zu stellen dass es unter Umständen auch "kein" Ergebnis geben kann.
+
+=== Erstellen von Optionals
+[source,java]
+----
+Optional<String> greeting = Optional.of("Hello");
+Optional<String> empty = Optional.empty();
+Optional<String> alsoEmpty = Optional.ofNullable(null);
+----
+
+[source,java]
+----
+@Test(expected = NullPointerException.class)
+public void optionalOfNull() {
+    Optional.of(null);
+}
+----
+
+=== Zugriff auf Optionals
+Zum den im Optional enthaltenen Wert zu erhalten kann entweder mit isPresent() und get() gearbeitet werden:
+[source,java]
+----
+Optional<String> greeting = Optional.of("Hello");
+if (greeting.isPresent()) {
+    System.out.println("Present: " + greeting.get());
+}
+----
+
+Oder mit ifPresent():
+[source,java]
+----
+Optional<String> hello = Optional.of("Hello");
+Optional<String> empty = Optional.empty();
+
+hello.ifPresent(string -> {
+    System.out.println("'hello' Present: " + string);
+});
+
+empty.ifPresent(string -> {
+    System.out.println("'empty' Present: " + string);
+});
+----
+
+=== Defaultwerte beim Zugriff
+die orElse()-Methode liefert bei Optionals die einen Wert enthalten diesen Wert zurück, und bei leeren
+Optionals den als Parameter übergebenen Defaultwert:
+[source,java]
+----
+String helloOrElseBye = Optional.of("hello").orElse("bye");
+String emptyOrElseBye = Optional.<String>empty().orElse("bye");
+----
+
+Alternativ kann orElseGet() verwendet werden. Hier wird der Defaultwert bei Bedarf durch einen Funktionsaufruf ermittelt.
+Das kann Vorteilhaft sein, falls die Ermittlung des Defaultswertes entweder langwierig ist oder Nebeneffekte hat.
+[source,java]
+----
+String helloOrElseBye = Optional.of("hello").orElseGet(
+    () -> System.getProperty("java.vendor")
+);
+----
+
+=== Map und Filter
+map() wendet eine Funktion auf den im Optional enthaltenen Wert an, und erzeugt ein neues Optional mit dem
+Rückgabewert der Funktion. War das ursprüngliche Optional leer, wird die Funktion nicht aufgerufen und ein leeres Optional
+zurückgegeben.
+[source,java]
+----
+Optional<String> greeting = Optional.of("Hello");
+Optional<Integer> helloLength = greeting.map(String::length);
+
+Optional<Integer> emptyLength = Optional.<String>empty().map(String::length);
+----
+
+Wenn die Funktion null zurückgibt, ist das von map() zurückgelieferte Optional leer.
+[source,java]
+----
+Optional<String> greeting = Optional.of("Hello");
+Optional<String> result = greeting.map(value -> (String)null);
+----
+
+filter() wendet eine Funktion auf den Inhalt des Optionals an, und gibt das ursprüngliche Optional zurück wenn die Funktion true zurückliefert.
+Liefert die Funktion false zurück oder war das Optional leer, wird empty() zurückgegeben.
+[source,java]
+----
+Optional<String> hello = Optional.of("Hello");
+Optional<String> greetingOnlyIfLongerThan10 = hello.filter(s -> s.length() > 10);
+Optional<String> greeingOnlyIfStartsWithHell = hello.filter(s -> s.startsWith("Hell"));
+----
+
+== Übungsaufgaben
+
+In der Klasse `funjava.block2.Block2Exercises` befinden sich einige Methoden die Daten mit `for each` und
+`if` verarbeiten. Schreibt diese Methoden um, um statt dessen mit Streams und/oder Optional zu arbeiten.

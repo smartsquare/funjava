@@ -1,0 +1,528 @@
+= Block 4: Immutables
+:sourcedir: ../src/main/java
+
+== Was? Wo? Wie?
+
+[quote, Immutables homepage]
+____
+Java annotation processors to generate simple, safe and consistent value objects.
+____
+
+* https://immutables.github.io/
+
+== Basics
+
+[plantuml, immutables_process, png]
+.Überblick -- Immutables Annotation Processor
+....
+@startuml
+interface Definition
+
+note right: Abstract value class
+
+class Implementation
+
+note right: Immutable implementation class
+
+Definition --> Implementation : Immutables Processor
+
+hide methods
+hide fields
+@enduml
+....
+
+* Annotation (abstract class or interface)
+* generated implementation
+
+=== Abstract Value Class
+
+[source,java]
+.Beispiel aus unserer Workshop-Domäne
+----
+include::{javasourcedir}/funjava/immutableslib/AddressILib.java[]
+----
+<1> Diese Annotation kennzeichnet das Interface als _abstract value class_.
+<2> Projektspezifische _style_ Anpassung
+<3> _Abstract value class_ als Interface oder abstrakte Klasse
+<4> Attributespezifische Annotation steuern das Verhalten
+
+=== Immutable Implementation Class
+
+[source,java]
+.Generierte Implementierung (Auszug)
+----
+include::{javasourcedir}/../../../build/generated/source/apt/main/funjava/immutableslib/AddressValue.java[lines=8..25]
+
+...
+----
+
+Die generierte Implementierung kümmert außer um die eigentlichen Attribute auch um:
+
+* `equals` und `hashCode`
+* `toString`
+* Factory Methode
+* Spezieller Builder
+
+== Instanziierung
+
+[source,java]
+.Factory method
+----
+include::{testdir}/funjava/immutableslib/ImmutableCreationTest.java[lines=15..21]
+----
+<1> `AddressValue.*of*(..)` ist die statische Factory in der generierten Klasse.
+
+[source,java]
+.Builder
+----
+include::{testdir}/funjava/immutableslib/ImmutableCreationTest.java[lines=34..47]
+----
+<1> `.builder()` erzeugt eine spezieller Builderobjekt nach dem Builder Pattern.
+<2> Auf dem Builder können entsprechende Attribute gesetzt werden.
+<3> Ein weiteres Beispiel um ein Attribut zu setzen.
+<4> Für Collections gibt es spezielle Methoden, z.B. um einzelne Elemente hinzuzufügen ...
+<5> ... oder auch mehrere auf einmal.
+<6> Am Ende wird durch die `.build()` Methode die Instanz erzeugt und an dieser Stelle wird dann sichergestellt,
+dass auch alle notwendigen Attribute gesetzt sind.
+
+
+[source,java]
+.Builder basierend auf einer anderen Instanz
+----
+include::{testdir}/funjava/immutableslib/ImmutableCreationTest.java[lines=49..61]
+----
+<1> Die `.from()` setzt alle Attribute des Builders auf die Werte des gegebenen Objektes.
+
+
+[source,java]
+.Kopie mit _with*_-Methoden
+----
+include::{testdir}/funjava/immutableslib/ImmutableCreationTest.java[lines=72..83]
+----
+<1> Die `.copyOf` Methode erstellt eine direkte Kopie.
+<2> Die `with*` Methoden erstenllen eine Kopie die sich genau im angegebenen Attribut unterscheiden. Die Kopie wird
+anschließend zurückgegeben und mehrere `with*`-Aufrufe lassen sich dadurch bequem verketten.
+
+
+== Attributes
+
+=== Collection Support
+
+* Arrays (`T[]`)
+* List, Set und Map (`java.util.List<T>`, `java.util.Set<T>` und `java.util.Map<K, V>`)
+* `com.google.common.collect.Multiset<T>`
+* `com.google.common.collect.Multimap<K, V>`
+* `com.google.common.collect.BiMap<K, V>`
+* `com.google.common.collect.Immutable*`
+* vavr (mittels zusätzlicher Bibliothek)
+
+=== Optional Support
+
+[source,java]
+.Optional
+----
+@Value.Immutable
+@MyStyle
+public interface PersonILib {
+
+    @Value.Parameter
+    String getName();
+
+...
+
+    @Value.Parameter
+    Optional<String> getNationality(); // <1>
+
+...
+
+}
+----
+<1> Optionale Attribute können mit `java.util.Optional(Int|Long|Double)`, `com.google.common.base.Optional` oder
+auch mit `io.vavr.control.Option` gekennzeichnet werden.
+
+=== Default attributes
+
+[source,java]
+.Default attribute
+----
+@Value.Immutable
+@MyStyle
+public interface AddressILib {
+
+...
+
+    @Value.Default // <1>
+    default String getCountry(){
+        return "DE";
+    }
+
+...
+
+}
+----
+<1> Default-Attribute *können*, müssen aber nicht gesetzt werden. Werden sie nicht explizit gesetzt,
+so wird die die Fallbackmethode ausgeführt und das Ergebnis verwendet.
+
+
+[source,java]
+.Beispiel: Verwendung von Default-Attributen
+----
+    @Test
+    public void defaultAttributShouldBeAbleToBeSet(){
+        AddressValue addressWithDefaultCountry = AddressValue.of("street", "city"); // <1>
+        AddressValue addressWithCountry = AddressValue.builder()
+                .street("streetFR")
+                .city("cityFR")
+                .country("FR") // <2>
+                .build();
+
+        assertEquals("DE", addressWithDefaultCountry.getCountry()); // <3>
+        assertEquals("FR", addressWithCountry.getCountry());        // <4>
+    }
+----
+<1> Default Attribute wird nicht gesetzt
+<2> Default Attribute wird gesetzt
+<3> Fallback oder gesetzter Wert wird im Immutable verwendet
+
+=== Derived attributes [[derived]]
+
+[source,java]
+.Derived attribute
+----
+@Value.Immutable
+@MyStyle
+public interface AddressILib {
+
+...
+
+    @Value.Derived // <1>
+    default String displayLabel(){
+        System.out.printf("computed derived");
+        return String.format("%s in %s (%s)", getStreet(), getCity(), getCountry());
+    }
+
+...
+
+}
+----
+<1> Derived-Attribute können nicht gesetzt werden und werden während der Konstruktion durch Ausführen
+der Methode bestimmt.
+
+[source,java]
+.Beispiel: Verwendung von Derived-Attributen
+----
+    @Test
+    public void addressDisplayLabelIsADerivedAttribute(){
+        AddressValue address = AddressValue.of("street", "city");
+        assertEquals("computed derived", systemOutRule.getLogWithNormalizedLineSeparator()); // <1>
+        systemOutRule.clearLog(); // <2>
+        assertEquals("street in city (DE)", address.displayLabel());
+        assertEquals("", systemOutRule.getLogWithNormalizedLineSeparator()); // <3>
+    }
+----
+<1> Die displayLabel-Methode wurde bei der Objekterstellung ausgeführt.
+<2> Löschen von system.out log
+<3> Die displayLabel-Methode wird *nicht* beim Zugriff auf das Attribut ausgeführt.
+
+=== Lazy attributes
+
+[source,java]
+.Lazy attribute
+----
+@Value.Immutable(prehash = true)
+@MyStyle
+public interface BankingTransactionILib {
+
+    @Value.Parameter(order = 1)
+    AccountILib fromAccount();
+
+    @Value.Parameter(order = 3)
+    AccountILib toAccount();
+
+    @Value.Parameter(order = 2)
+    BigDecimal amount();
+
+    @Value.Lazy // <1>
+    default int getAddressCount(){
+        Set<AddressILib> fromAddresses = fromAccount().getPerson().getAddresses();
+        Set<AddressILib> toAddresses = toAccount().getPerson().getAddresses();
+        Set<AddressILib> allAddresses = new HashSet<>();
+        allAddresses.addAll(fromAddresses);
+        allAddresses.addAll(toAddresses);
+        System.out.println("lazy address count!");
+        return allAddresses.size();
+    }
+}
+----
+<1> Definition eines Lazy-Attributes. Lazy-Attribute werden beim ersten Zugriff berechnet und der Wert
+gespeichert. Für sie gelten:
+
+* Lazy Attribute werden *nicht* für `equals` und `hashCode` berücksichtigt.
+Sie sind implizit <<auxiliary>>!
+* Thread-safe
+* Einmal und nur einmal berechnet (computed once and only once)
+* Sie sollten nicht von anderen (default oder derived) Attributen verwendet werden, ansonsten werden
+sie initalisiert und verhalten sich de facto wie <<derived>>.
+
+[source,java]
+.Beispiel: Verwendung von Lazy-Attributen
+----
+    @Test
+    public void lazyAttributesAreOnlyEvaluatedOnce(){
+        BankingTransactionILib transaction = DATA.getBankingTransactions().iterator().next();
+        for (int i = 0; i< 5; i++){
+            transaction.getAddressCount(); // <1>
+        }
+        assertEquals("lazy address count!\n", systemOutRule.getLogWithNormalizedLineSeparator()); // <2>
+    }
+----
+<1> Es wird mehrmals auf das Lazy-Attribut zugegriffen
+<2> Die Logausgabe belegt, dass die Methode nur einmal ausgeführt wurde
+
+
+=== Auxiliary attributes [[auxiliary]]
+
+[source,java]
+.Auxiliary attribute
+----
+@Value.Immutable
+@MyStyle
+public interface PersonILib {
+
+...
+
+    @Value.Auxiliary // <1>
+    Optional<String> getHobby();
+
+...
+
+}
+----
+<1> Auxiliary-Attributes verhalten sich wie normale Attribute werden aber von den generierten
+`toString`, `equals` und `hashCode` Methoden ausgenommen.
+
+[source,java]
+.Beispiel: Verwendung von Auxiliary-Attributen
+----
+    @Test
+    public void auxiliaryAttributesAreNotPartOfEqualsAndToString(){
+        PersonValue runningPerson = PersonValue.builder()
+                .name("name")
+                .birthdate(LocalDate.of(2000, 12, 31))
+                .hobby("running") // <1>
+                .build();
+        PersonValue walkingPerson = PersonValue.builder()
+                .name("name")
+                .birthdate(LocalDate.of(2000, 12, 31))
+                .hobby("walking") // <1>
+                .build();
+
+        assertFalse("hobby should not be part of toString()",
+                runningPerson.toString().contains("running")); // <2>
+        assertTrue("running and walking person should be equal",
+                runningPerson.equals(walkingPerson)); // <3>
+    }
+----
+<1> Zwei Personen mit unterschiedlichen Hobbies
+<2> Das Hobby ist nich Teil von `toString()` ...
+<3> ... und wird auch beim `equals` Vergleich ignoriert
+
+=== Redacted attributes [[redacted]]
+
+[source,java]
+.Redacted attribute
+----
+@Value.Immutable
+@MyStyle
+public interface PersonILib {
+
+...
+
+    @Value.Parameter
+    @Value.Redacted // <1>
+    LocalDate getBirthdate();
+
+...
+
+}
+----
+<1> Redacted-Attributes werden bei der `toString` Methode entweder ignoriert oder falls ein
+entsprechender Style definiert ist, maskiert.
+
+[source,java]
+.Beispiel: Verwendung von Redacted-Attributen
+----
+     @Test
+     public void birthdateIsARedactedAttribute(){
+         PersonValue person = PersonValue.builder()
+                 .name("name")
+                 .birthdate(LocalDate.of(2000, 12, 31))
+                 .build();
+
+         assertFalse("birtdate should not be part of toString()",
+                     person.toString().contains("2000-12-31")); // <1>
+         assertTrue("mask shouldbe part of toString()",
+                     person.toString().contains("####"));  // <2>
+     }
+----
+<1> Das echte Geburtsdatum ist nicht in der `toString()`-Ausgabe enthalten
+<2> Fall konfiguriert, wird stattdessen ein maskierter Wert ausgegeben
+
+== Check methods
+
+=== Preconditions
+
+Über die `@Value.Check`-Annotation können Vorbedingungen einer Klasse modelliert werden, die ansonsten
+typischerweise im Konstruktor geprüft werden.
+
+[source,java]
+.Beispiel Vorbedingung: Das Geburtsdatum darf nicht in der Zukunft liegen
+----
+@Value.Immutable
+@MyStyle
+public interface PersonILib {
+
+...
+
+    @Value.Check // <1>
+    default void check(){ // <2>
+        if (getBirthdate().isAfter(LocalDate.now())){
+            throw new IllegalStateException("Future birthdate not allowed!");
+        }
+    }
+
+}
+----
+<1> Markierung der Prüfmethode mit der `@Value.Check`-Annotation
+<2> Implementierung der Prüfmethode. Der Name ist frei wählbar und es kann beliebig viele geben.
+
+Die Prüfmethode(n) werden ausgeführt nach der Erzeugung des Objektes und Initialisierung aller
+Attribute aber *bevor* das Objekt dem Aufrufer zurückgegen wird.
+
+[source,java]
+.Fehlgeschlagene Prüfung
+----
+    @Test
+    public void futureBirthdateShouldNotBeAllowed(){
+        thrown.expect(IllegalStateException.class); // <2>
+        thrown.expectMessage("Future birthdate");   // <2>
+        PersonValue.builder()
+                .name("name")
+                .birthdate(LocalDate.now().plusDays(10)) // <1>
+                .build();
+    }
+----
+<1> Das Geburtsdatum wird 10 Tage in die Zukunft gesetzt
+<2> Eine entsprechende IllegalStateException wird erwartet
+
+=== Normalisierung
+
+Die Prüfmethoden werden auch für einen weiteren Zweck verwendet. Entspricht der Returnwert dem Typ
+Abstract Value Class wird der zurückgegebene Wert an den Aufrufer weitergegeben. Damit lassen sich
+z.B. Normalisierungen abbilden.
+
+[source,java]
+.Beispiel Normalisierung: Account Balance soll immer vier Nachkommastellen genau sein.
+----
+@Value.Immutable
+@MyStyle
+public interface AccountILib {
+
+...
+
+    @Value.Check // <1>
+    default AccountILib normalize(){ // <2>
+        if (getBalance().scale() != 4){ // <3>
+            return AccountValue.builder()
+                    .from(this)
+                    .balance(getBalance().setScale(4, BigDecimal.ROUND_HALF_UP))
+                    .build();
+        }
+        return this;
+    }
+}
+----
+<1> Gleiche Annotation wie bei der _normalen_ Prüfmethode
+<2> Implementierung der Prüfmethode gibt einen Wert vom selben Typen zurück
+<3> Es ist sicherzustellen, dass ein bereits korrekt normalisiertes Objekt direkt zurückgegeben wird
+um Endlosschleifen zu vermeiden!
+
+
+[source,java]
+.Test der Normalisierung
+----
+    @Test
+    public void balanceScaleShouldBeSetCorrectly(){
+        AccountValue account = AccountValue.builder()
+                .accountNumber("123")
+                .person(DATA.getPeople().iterator().next())
+                .balance(BigDecimal.TEN) // <1>
+                .build();
+
+        assertEquals(4, account.getBalance().scale()); <2>
+    }
+----
+<1> Die Konstante BidDecimal.TEN hat einen scale von 0
+<2> Das erzeugte Account Objekt hat ein Balance mit der scale 4
+
+== Style
+
+Viele Aspekte der Codegenerierung können durch das `@Value.Style` beeinflusst werden. Dies sind unter
+anderem:
+
+* Anpassen der Präfixe und Postfixe wie Namen und Typen erkannt werden
+* Anpassen der Präfixe und Postfixe der generierten Typen und Methoden
+* Steuern der Objekterzeugung (z.B. ob Factorymethoden erstellt werden sollen oder nicht)
+* Sichtbarkeit der Implementierung: `public`, package private oder genau wie in der abstrakten Klasse
+* Details der generierten Implementierung, z.B. ob guava verwendet werden soll oder nicht
+
+=== Verwendung
+
+Styles können an folgenden Stellen verwendet werden:
+
+* Am Package und der Style wirkt sich dann auf das gesamt Package aus
+* An einem Toplevel-Typ wo es sich auf diesen und alle verschachtelten Typen auswirkt
+* An einer Annotation wo es sich da auswirkt, wo diese Annotation verwendet wird (style meta-annotation)
+
+Es wird empfohlen einen (oder mehrere) _style meta-annotation_ zu definieren und zu verwenden um eine
+einheitliche Verwendung von Immutables im Projekt sicherzustellen.
+
+[source,java]
+.Style Definition aus dem Workshop
+----
+@Target({ ElementType.PACKAGE, ElementType.TYPE})
+@Retention(RetentionPolicy.CLASS)
+@Value.Style(
+        typeAbstract = {"*ILib"}, // 'ILib' suffix will be detected and trimmed  <1>
+        typeImmutable = "*Value", // 'Value' suffix for generated immutable type  <1>
+        depluralize = true, // enable depluralization feature <2>
+        depluralizeDictionary = {"person:people", "address:addresses"}, // specifying dictionary of exceptions
+        redactedMask = "####" // mask used for redacted attributes <3>
+)
+public @interface MyStyle { } // <5>
+
+----
+<1> Erkennen und Erzeugen der Typen für die Abstract Value Class und die Immutable Implementation Class
+<2> Aktivieren des _depluralize_-Feature für Collections
+<3> Setzen der Maske für <<redacted>>
+
+== Übungsaufgaben
+
+=== Neuer Style
+
+Definiere einen neuen Style `MyBetterStyle` mit folgenden Eigenschaften:
+
+    * Die Abstract Value Class soll kein Prä-, oder Postfix haben
+    * Die Immutable Implementation Class soll das Präfix `Im` und das Postfix `Value` haben
+    * Die Sichtbarkeit in der Implementierung ist package private
+    * und der Builder soll Creator heißen
+
+=== Neue Immutable Klasse für eine Bankfiliale (`BranchBank`)
+
+name :: String
+address :: AddressILib
+employees :: Set<PersonILib>, mindestens einer, _redacted_
+accounts :: Set<AccountILib>, mindestens einer, _redacted_
+customers :: Set<PersonILib>, _derived_ von accounts -> owner
+
+Die Klasse soll keine factory Methode (`of`) haben.

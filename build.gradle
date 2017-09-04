@@ -1,0 +1,109 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        if (gradle.startParameter.isOffline()) {
+            classpath fileTree(dir: "${projectDir}/libs/buildscript")
+        } else {
+            classpath "net.ltgt.gradle:gradle-apt-plugin:0.10"
+            classpath 'org.asciidoctor:asciidoctor-gradle-plugin:1.5.3'
+            classpath 'org.asciidoctor:asciidoctorj-pdf:1.5.0-alpha.14'
+            classpath 'org.asciidoctor:asciidoctorj-diagram:1.5.4.1'
+        }
+    }
+}
+
+apply plugin: 'net.ltgt.apt'
+apply plugin: 'org.asciidoctor.convert'
+apply plugin: 'java'
+apply plugin: 'idea'
+ext.libs = "$projectDir/libs"
+ext.compileLib = "${libs}/compile"
+ext.runtimeLib = "${libs}/runtime"
+ext.compileOnlyLib = "${libs}/compileOnly"
+ext.testCompileLib = "${libs}/testCompile"
+ext.testRuntimeLib = "${libs}/testRuntime"
+ext.aptLib = "${libs}/apt"
+
+dependencies {
+    if (gradle.startParameter.isOffline()) {
+        compile fileTree(dir: compileLib)
+        compileOnly fileTree(dir: compileOnlyLib)
+        runtime fileTree(dir: runtimeLib)
+        testCompile fileTree(dir: testCompileLib)
+        testRuntime fileTree(dir: testRuntimeLib)
+        apt fileTree(dir: aptLib)
+        testApt fileTree(dir: aptLib)
+    } else {
+        compileOnly "org.immutables:value:2.5.5:annotations"
+        testCompile "org.immutables:value:2.5.5:annotations"
+        apt "org.immutables:value:2.5.5"
+        testApt "org.immutables:value:2.5.5"
+        compileOnly "org.immutables.vavr:vavr-encodings:0.4.0"
+        compile group: 'io.vavr', name: 'vavr', version: '0.9.0'
+        testCompile group: 'junit', name: 'junit', version: '4.+'
+        testCompile 'com.github.stefanbirkner:system-rules:1.16.0'
+    }
+}
+
+task deleteLibs(type: Delete) {
+    delete 'libs/compile'
+    delete 'libs/compileOnly'
+    delete 'libs/runtime'
+    delete 'libs/testCompile'
+    delete 'libs/testRuntime'
+    delete 'libs/apt'
+    delete 'libs/buildscript'
+}
+
+task copyToLibs(dependsOn: 'deleteLibs') << {
+    ['compile', 'compileOnly', 'runtime', 'testCompile', 'testRuntime', 'apt'].each { scope ->
+        copy {
+            from configurations.getByName(scope).files
+            into "${libs}/${scope}"
+        }
+    }
+    copy {
+        from project.buildscript.configurations.classpath.files
+        into "${libs}/buildscript"
+    }
+}
+
+asciidoctorj {
+    version = '1.5.5'
+}
+
+// NOTE: the following image preparation tasks were taken from the junt5 build script
+// "Catalog" of static images plus images generated via asciidoctor-diagram.
+ext.imagesCatalogDir = new File(buildDir, 'asciidoc/images')
+// Copy static images to the "Catalog" directory so that the catalog
+// directory can be used as both the "source" and "target" directory
+// while generating a PDF of the User Guide. If we do not do this,
+// the PDF will NOT contain any generated diagrams!
+task copyStaticImagesToCatalogDir(type: Copy) {
+    from 'src/docs/asciidoc/images'
+    into imagesCatalogDir
+}
+
+asciidoctor {
+    dependsOn copyStaticImagesToCatalogDir
+    backends 'html5', 'pdf'
+    requires 'asciidoctor-diagram'
+    attributes  \
+         'build-gradle': file('build.gradle'),
+            'endpoint-url': 'http://example.org',
+            'source-highlighter': 'coderay',
+            'javasourcedir': project.sourceSets.main.java.srcDirs[0],
+            'testdir': project.sourceSets.test.java.srcDirs[0],
+            'imagesoutdir': imagesCatalogDir,
+            'imagesdir': imagesCatalogDir,
+            'icons': 'font',
+            'setanchors': '',
+            'idprefix': '',
+            'idseparator': '-',
+            'docinfo1': ''
+}

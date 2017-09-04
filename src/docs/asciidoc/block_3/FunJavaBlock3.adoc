@@ -1,0 +1,147 @@
+= Block 3: Mutable / Immutable
+
+== Definitionen
+[quote, Englische Wikipedia zu 'Immutable object']
+____
+In object-oriented and functional programming, an immutable object (unchangeable object) is an object whose state cannot be modified after it is created.
+This is in contrast to a mutable object (changeable object), which can be modified after it is created.
+____
+
+== Mutable Objects
+
+=== Mutability und Collections
+Wollen wir veränderliche Objekte in Collections haben?
+
+[source,java]
+----
+Map<Date, String> exampleMap = new HashMap<>();
+Date key = new Date(1);
+exampleMap.put(key, "value");
+
+exampleMap.get(new Date(1)); //???
+exampleMap.get(key);         //???
+----
+Das ist noch gut durchschaubar. Und wenn wir 'key' verändern?
+
+[source,java]
+----
+key.setTime(2);
+exampleMap.get(new Date(1)); //???
+exampleMap.get(key);         //???
+exampleMap.get(new Date(2)); //???
+----
+
+=== Thread Safety
+[quote,Angeblich Martin Odersky, Scala lead designer]
+____
+non-determinism = parallel processing + mutable state
+____
+
+[source,java]
+----
+//Codebeispiel aus http://henrikeichenhardt.blogspot.de/2013/06/why-shared-mutable-state-is-root-of-all.html
+public class BrokenMap<E, V> extends HashMap<E ,V> {
+    public T putIfAbsent(final E key, final T value) {
+        if (!this.containsKey(key)) {
+            return this.put(key, value);
+        } else {
+            return this.get(key);
+        }
+    )
+}
+----
+Was passiert bei parallen Aufrufen der Methode?
+
+== Immutable Objects
+Unveränderliche JDK Klassen sind z.B.:
+
+* String, Integer, Double, ...
+* java.time.*
+
+=== Vergleich java.util.Calendar / java.time.LocalDateTime
+[source,java]
+----
+Calendar now = Calendar.getInstance();
+now.add(Calendar.DAY_OF_MONTH, -1);
+----
+[source,java]
+----
+LocalDateTime now = LocalDateTime.now();
+LocalDateTime yesterday = now.minusDays(1);
+----
+
+
+=== Unveränderlichkeit sicherstellen
+Ursprüngliche Klasse:
+[source,java]
+----
+public static class MutablePerson {
+    private String name;
+    private Set<AddressBean> addresses;
+    //...
+}
+----
+
+Alle Felder als `final` markieren und im Konstruktor setzen:
+[source,java]
+----
+public static class PersonWithFinalFields {
+    private final String name;
+    private final Set<AddressBean> addresses;
+
+    public PersonWithFinalFields(String name, Set<AddressBean> addresses) {
+        this.name = name;
+        this.addresses = addresses;
+    }
+    //...
+}
+----
+
+Das reicht noch nicht. Beispiel:
+[source,java]
+----
+HashSet<AddressBean> addresses = new HashSet<AddressBean>();
+PersonWithFinalFields person = new PersonWithFinalFields("Bob", addresses);
+
+addresses.add(new AddressBean());
+----
+
+Also in Gettern und im Konstruktor defensive Kopien anlegen:
+[source,java]
+----
+public static final class PersonWithDefensiveCopies {
+    private final String name;
+    private final Set<AddressBean> addresses;
+
+    public PersonWithDefensiveCopies(String name, Set<AddressBean> addresses) {
+        this.name = name;
+        this.addresses = new HashSet<>(addresses);
+    }
+
+    //...
+
+    public Set<AddressBean> getAddresses() {
+        return new HashSet<>(addresses);
+    }
+}
+----
+
+Findet den verbleibenden Fehler :)
+
+=== Vorteile
+* Referenzen auf Objekte können gefahrlos weitergegeben oder gecached werden
+* Thread-Safe
+* Keine Stolperfallen bei Verwendung in Collections
+
+[quote,Effective Java second Edition, Chapter 4; Item 15 "Minimize mutability"]
+____
+Immutable classes are easier to design, implement, and use than mutable classes.
+They are less prome to error and are more secure.
+____
+
+=== Nachteile
+* Recht aufwendig und fehleranfällig von Hand zu erstellen
+
+== Übungsaufgaben
+In  der Klasse `funjava.block3.MutableStateBugExercise` befindet sich ein mit @Ignore deaktivierter Test.
+Lasst diesen Test laufen, findet heraus warum er fehlschlägt und korrigiert das Problem.

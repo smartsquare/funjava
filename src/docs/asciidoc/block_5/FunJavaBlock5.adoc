@@ -1,0 +1,292 @@
+= Block 5: Vavr I
+
+== Intro
+
+[quote, Vavr user guide]
+____
+Vavr (formerly called Javaslang) is a functional library for Java 8+ that provides persistent data types and functional control structures.
+____
+
+== Collection Hierarchie
+
+image::vavr-overview.png[Vavr Overview]
+
+* Immutable-Implementationen von verschiedenen abstrakten Datentypen (Set, Map, List, ...)
+* Implementieren leider(?) nicht die Java Collections interfaces
+
+== Immutable Collections?
+[source,java]
+----
+List<Integer> originalList = List(1, 2, 3);
+List<Integer> listWithNewElement = originalList.append(4);
+----
+Die Liste wird nicht in-place verändert, sondern ein neues Objekt zurückgeliefert!
+
+== Erzeugung
+Verschiedene statische Methoden aus io.vavr.API.* importierbar:
+[source,java]
+----
+Array<Integer> intArray = Array(1, 2, 3);
+CharSeq string = CharSeq("Hello, World");
+Map<String, String> map = Map("key1", "value1", "key2", "value2");
+Queue<Integer> emptyQueue = Queue();
+List<String> stringList = List("Hello", "World");
+Set<String> stringSet = Set("Foo", "Bar", "Foo");
+//... und viele mehr!
+----
+
+Statische Methoden direkt auf den jeweiligen Klassen:
+[source,java]
+----
+Array<Integer> intArray = Array.of(1, 2, 3);
+SortedMap<String, String> sortedMap = TreeMap.of("key1", "value1", "key2", "value2");
+Map<String, String> map = HashMap.of("key1", "value1", "key2", "value2");
+Set<String> stringSet = HashSet.of("Foo", "Bar", "Foo");
+----
+
+Hier sind auch Factories vorhanden um aus Java-Iterables neue Collections zu erzeugen:
+[source,java]
+----
+java.util.List<Integer> javaList = Arrays.asList(1, 2, 3);
+Array<Integer> intArray = Array.ofAll(javaList);
+List<Integer> intList = List.ofAll(javaList);
+
+java.util.Map<String, String> javaMap = new java.util.HashMap<>();
+javaMap.put("key1", "value1");
+javaMap.put("key2", "value2");
+Map<String, String> map = HashMap.ofAll(javaMap);
+----
+
+== Konvertierung zu Java-Collections
+[source,java]
+----
+Integer[] array = List(1, 2, 3).toJavaArray(Integer.class);
+java.util.List<Integer> list = List(1, 2, 3).toJavaList();
+java.util.Map<String, String> map = Map("key1", "value1", "key2", "value2").toJavaMap();
+----
+
+== Kurzer Ausflug: Tuple und Option
+
+=== Tuple
+[quote, Vavr User Guide]
+____
+A Tuple combines a fixed number of elements together so that they can be passed around as a whole.
+Unlike an array or list, a tuple can hold objects with different types, but they are also immutable.
+____
+
+Verwendet z.B. für Einträge in VAVR Maps (Tuple2<> anstelle von Map.Entry<>)
+
+Erzeugung:
+[source, java]
+----
+Tuple2<String, String> keyValue = Tuple("Name", "Bob");
+Tuple3<String, String, LocalDate> person = Tuple("Karl", "Müller", LocalDate.of(1968, 7, 15));
+----
+
+Zugriff auf Elemente:
+[source,java]
+----
+Tuple3<String, String, LocalDate> person = Tuple("Karl", "Müller", LocalDate.of(1968, 7, 15));
+String firstName = person._1;
+String lastName = person._2();
+----
+Elemente können sowohl mit direkten Attributzugriff, als auch über accessor-Methoden gelesen werden.
+
+Beispiel für sinnvolle(?) Anwendung kommt später zusammen mit Streams.
+
+=== Option
+* Ähnlich zu java.util.Optional<>
+[source,java]
+----
+Option<String> greeting = Some("hello");
+Option<String> greeting2 = Option.of("hello");
+Option<String> empty = None();
+
+Assert.assertFalse(greeting.isEmpty());
+Assert.assertTrue(greeting.isDefined());
+
+Assert.assertTrue(empty.isEmpty());
+Assert.assertFalse(empty.isDefined());
+
+Assert.assertEquals(greeting, greeting2);
+----
+
+* Verhält sich als VAVR Collection mit 0 bis 1 Elementen
+[source,java]
+----
+greeting.forEach(System.out::println);
+greeting.onEmpty(() -> {throw new RuntimeException("Greeting may not be empty!");});
+
+for (String item: greeting) {
+    System.out.println(item);
+}
+----
+
+== Streams
+Unterstützt werden sowohl JDK8-Streams...
+[source,java]
+----
+int smallestNumber = List(17, 42, 23, 5)
+        .toJavaStream()
+        .sorted()
+        .findFirst()
+        .get();
+----
+
+...als auch eine Vavr-eigene API, die direkt auf allen Vavr Collections anwendbar ist.
+[source,java]
+----
+int smallestNumber = List(17, 42, 23, 5)
+        .sorted()
+        .head();
+----
+
+Vavr Maps verhalten sich wie alle anderen Collections und sind daher Streambar:
+[source,java]
+----
+Map<String, String> map = SortedMap("key1", "value1", "key2", "value2");
+
+List<String> strings = map
+        .map(keyValue -> keyValue._1 + " = " + keyValue._2)
+        .toList();
+----
+
+== Stream- und Collection-Methoden
+Neben den "üblichen" Methoden von JDK8-Streams bietet Vavr noch einige mehr:
+
+zip fügt zwei Sequenzen gleicher Länge zu einer Sequenz von 2-Tuples zusammen.
+Die Berechnung eines Skalarproduktes sieht damit zum Beispiel wie folgt aus:
+[source,java]
+----
+Seq<Integer> vector1 = Vector(2, 4, -1);
+Seq<Integer> vector2 = Vector(3, -2, 2);
+Number product = vector1.zip(vector2)
+        .map(pair -> pair._1 * pair._2)
+        .sum();
+----
+
+Alle Sequenzen von Zahlen können einige einfache Rechenoperationen durchführen, ohne
+dass wir uns mit map, reduce und konsorten rumplagen müssen:
+[source,java]
+----
+List<Integer> numbers = List(23, 7, 3, 42, 11);
+Double average = numbers.average().get();
+Assert.assertTrue(average > 17.1 && average < 17.3);
+----
+
+== Function
+
+Vavr bietet eine Sammlung von functional interfaces für belibige 0- bis 8-parametrige Funktionen.
+Diese sind etwas übersichtlicher benannt als die Supplier, Function, BiFunction etc. im JDK8:
+[source,java]
+----
+Function0<Integer> supplier = () -> 42;
+Function1<Integer, Integer> function = (a) -> a + 1;
+Function2<Integer, Integer, Integer> biFunction = (a,b) -> a + b;
+//und so weiter, bis Function8<T1,T2,T3,T4,T5,T6,T7,T8,R>
+CheckedFunction0<Integer> checkedSuppier = () -> {throw new IOException("this function always throws a checked exception");};
+----
+
+Über die reine Verwendung als Functional Interfaces hinaus haben die FunctionX Klassen in Vavr auch einige interessante Methoden.
+
+Mit apply() wird aus einer Funktion mit N Parametern eine neue mit N-1 Parametern erzeugt, indem der erste Parameter
+der ursprünglichen Funktion mit einem Wert vorbelegt wird:
+[source,java]
+----
+Function2<Integer, Integer, Integer> add = (a, b) -> a + b;
+Function1<Integer, Integer> add10 = add.apply(10);
+
+Assert.assertEquals(Integer.valueOf(13), add10.apply(3));
+----
+
+Mit memoized() wird eine neue Funktion mit der gleichen Signatur erzeugt, welche bei wiederholten, identischen Aufrufen die urpsrüngliche Funktion nur ein
+mal Aufruft und das Ergebnis danach zwischenspeichert und wiederverwendet:
+[source,java]
+----
+Function2<Integer, Integer, Integer> add = (a, b) -> {System.out.println("Adding " + a + " and " + b); return a + b;};
+Function2<Integer, Integer, Integer> addMemoized = add.memoized();
+addMemoized.apply(3, 4);
+addMemoized.apply(1, 1);
+addMemoized.apply(3, 4);
+----
+
+Einige Funktionen, wie z.B. Integer.parseInt(), sind nicht für alle Eingaben definiert und werfen Exceptions für
+ungültige Eingaben. Mit lift() können wir daraus Funktionen bauen, die für gültige Eingaben ein Some() zurückgeben und für
+ungültige None().
+[source,java]
+----
+Function1<String, Option<Integer>> parseInt = Function1.lift(Integer::parseInt);
+
+Assert.assertEquals(Some(13), parseInt.apply("13"));
+Assert.assertEquals(None(), parseInt.apply("Hello"));
+----
+
+tupled() macht aus einer Funktion mit N parametern eine, die ein N-elementiges Tupel als Parameter erhält:
+[source,java]
+----
+Function2<Integer, Integer, Integer> add = (a, b) -> a + b;
+Function1<Tuple2<Integer, Integer>, Integer> addTupled = add.tupled();
+
+Assert.assertEquals(add.apply(1,2), addTupled.apply(Tuple(1, 2)));
+----
+
+compose() und andThen() erzeugen aus zwei Funktionen eine neue Funktion, zunächst die eine aufrufen und das Ergebnis dann als Parameter für die andere benutzen:
+[source,java]
+----
+Function1<Integer, Integer> add1 = a -> a + 1;
+Function1<Integer, Integer> times3= a -> a * 3;
+Function1<Integer, Integer> plus1ThenTimesThree = add1.andThen(times3);
+//Alternativ:
+//Function1<Integer, Integer> plus1ThenTimesThree = times3.compose(add1);
+Assert.assertEquals(Integer.valueOf(9), plus1ThenTimesThree.apply(2));
+----
+
+Neben den verschiedenen Möglichkeiten, bestehende Funktionen zu manipulieren gibt es auch ein Paar einfache Standardfunktionen:
+[source,java]
+----
+Function<String, String> identity = Function.identity();
+Assert.assertEquals("hello", identity.apply("hello"));
+Assert.assertEquals("world", identity.apply("world"));
+
+Function3<Integer, String, Boolean, String> constant = Function3.constant("Foo");
+Assert.assertEquals("Foo", constant.apply(13, "hello", false));
+----
+
+== Lazy
+`Lazy` ist ein Container für einen Wert, der erst bei der ersten Verwendung berechnet wird.
+[source,java]
+----
+private String expensiveOperation() {
+    Try.run( () -> Thread.sleep(1000));
+    return "Hello, World";
+}
+
+public void lazy() {
+    Lazy<String> greeting = Lazy.of(this::expensiveOperation);
+
+    System.out.println("Using lazy value for the first time...");
+    System.out.println(greeting.get());
+    System.out.println("Using lazy value for the second time...");
+    System.out.println(greeting.get());
+}
+----
+
+Analog dazu ist es auch möglich, Proxy-Objekte für beliebige Interfaces zu erzeugen, die den eigentlichen
+Wert erst bei der ersten Verwendung ermitteln:
+[source,java]
+----
+public void lazyValue() {
+    CharSequence greeting = Lazy.val(this::expensiveOperation, CharSequence.class);
+    System.out.println("Using lazy value for the first time...");
+    System.out.println(greeting);
+    System.out.println("Using lazy value for the second time...");
+    System.out.println(greeting);
+}
+----
+
+
+
+== Übungsaufgaben
+
+In der Klasse `funjava.block5.Block5Exercises` befinden sich verschiedene Methoden, die bisher nicht von Vavr gebrauch machen.
+Versucht, mit Vavr kompaktere, lesbarere oder schönere Lösungen zu finden.
